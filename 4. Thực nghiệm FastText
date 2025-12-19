@@ -1,0 +1,62 @@
+# @title 4. Thực nghiệm FastText (Thêm Precision & Recall)
+import fasttext
+import pandas as pd
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+
+print(">>> BẮT ĐẦU: FastText (Optimized) với đầy đủ chỉ số...")
+
+# 1. Khởi tạo bảng kết quả nếu chưa có
+if 'results_table' not in globals():
+    results_table = []
+
+# 2. Chuẩn bị dữ liệu định dạng FastText
+def prepare_ft_data(text_series, label_series, filename):
+    with open(filename, 'w', encoding='utf-8') as f:
+        for text, label in zip(text_series, label_series):
+            f.write(f"__label__{label} {text}\n")
+
+prepare_ft_data(X_train, y_train, 'train.ft')
+prepare_ft_data(X_test, y_test, 'test.ft')
+
+# 3. Huấn luyện (Cấu hình N-grams=3 để bắt ngữ cảnh tốt)
+# Bạn có thể bật chế độ autotune nếu muốn (nhưng sẽ lâu hơn)
+model_ft = fasttext.train_supervised(
+    input='train.ft',
+    wordNgrams=3,     # Quan trọng cho tiếng Việt
+    lr=0.5,
+    epoch=30,
+    dim=100
+)
+
+# 4. Dự đoán
+y_pred_ft = []
+for text in X_test:
+    pred_label = model_ft.predict(text)[0][0]
+    y_pred_ft.append(int(pred_label.replace('__label__', '')))
+
+# 5. TÍNH TOÁN ĐẦY ĐỦ CÁC CHỈ SỐ (Accuracy, Precision, Recall, F1)
+acc = accuracy_score(y_test, y_pred_ft)
+# average='weighted' giúp tính trung bình có trọng số cho bài toán đa lớp (3 lớp)
+precision, recall, f1, _ = precision_recall_fscore_support(y_test, y_pred_ft, average='weighted')
+
+print("\n" + "="*40)
+print(f"✅ KẾT QUẢ CHI TIẾT FASTTEXT")
+print("="*40)
+print(f"   • Accuracy  (Độ chính xác): {acc:.4f}")
+print(f"   • Precision (Độ chuẩn)    : {precision:.4f}")
+print(f"   • Recall    (Độ phủ)      : {recall:.4f}")
+print(f"   • F1-Score  (Trung hòa)   : {f1:.4f}")
+print("="*40)
+
+# 6. Cập nhật vào bảng tổng hợp (để vẽ biểu đồ sau này)
+# Xóa kết quả cũ nếu có để tránh trùng lặp
+results_table = [res for res in results_table if res['Model'] != 'FastText']
+results_table.append({
+    'Model': 'FastText',
+    'Accuracy': acc,
+    'Precision': precision,
+    'Recall': recall,
+    'F1-Score': f1
+})
+
+print(">>> Đã lưu đầy đủ kết quả vào bảng.")
