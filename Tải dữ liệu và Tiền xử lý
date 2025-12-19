@@ -1,0 +1,73 @@
+# @title 1 & 2. Tải dữ liệu và Tiền xử lý
+import os
+import re
+import pandas as pd
+from underthesea import word_tokenize
+from google.colab import drive
+
+# 1. Kết nối Google Drive
+drive.mount('/content/drive')
+
+# --- CẤU HÌNH ĐƯỜNG DẪN (QUAN TRỌNG) ---
+# Hãy đảm bảo đường dẫn này CHÍNH XÁC với nơi bạn lưu file trong Drive
+BASE_DIR = '/content/drive/MyDrive/UIT-VSFC'
+
+def load_uit_vsfc(data_type):
+    folder_path = os.path.join(BASE_DIR, data_type)
+    sents_file = os.path.join(folder_path, 'sents.txt')
+    sentiments_file = os.path.join(folder_path, 'sentiments.txt')
+
+    # Kiểm tra file có tồn tại không trước khi đọc
+    if not os.path.exists(sents_file):
+        print(f"❌ LỖI: Không tìm thấy file tại: {sents_file}")
+        return None
+
+    with open(sents_file, 'r', encoding='utf-8') as f:
+        sents = [s.strip() for s in f.readlines()]
+    with open(sentiments_file, 'r', encoding='utf-8') as f:
+        labels = [int(s.strip()) for s in f.readlines()]
+
+    return pd.DataFrame({'text': sents, 'label': labels})
+
+# 2. Tải dữ liệu
+print(">>> Đang tải dữ liệu...")
+train_df = load_uit_vsfc('train')
+dev_df = load_uit_vsfc('dev')
+test_df = load_uit_vsfc('test')
+
+# Chỉ chạy tiếp nếu tải dữ liệu thành công
+if train_df is not None:
+    print(f"✅ Tải xong: Train ({len(train_df)}), Dev ({len(dev_df)}), Test ({len(test_df)})")
+
+    # 3. Tiền xử lý (Clean + Tách từ)
+    print(">>> Đang tiền xử lý (Clean & Tokenize)...")
+
+    replace_list = {
+        'ô kêi': 'ok', 'okie': 'ok', 'o kê': 'ok', 'okey': 'ok', 'ôkê': 'ok',
+        'oki': 'ok', 'oke': 'ok', 'okay': 'ok', 'okê': 'ok',
+        'tks': 'cảm ơn', 'thks': 'cảm ơn', 'thanks': 'cảm ơn', 'ths': 'cảm ơn', 'thank': 'cảm ơn',
+        'kg': 'không', 'not': 'không', 'k': 'không', 'kh': 'không', 'kô': 'không', 'hok': 'không', 'ko': 'không', 'khong': 'không',
+        'vs': 'với', 'wa': 'quá', 'wá': 'quá', 'j': 'gì', '“': ' ', '”': ' ', '"': ' ',
+    }
+
+    def preprocess_full(text):
+        text = str(text).lower()
+        for k, v in replace_list.items():
+            text = text.replace(k, v)
+        text = re.sub(r'[^a-záàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ0-9\s]', ' ', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return word_tokenize(text, format="text")
+
+    # Áp dụng
+    train_df['text_clean'] = train_df['text'].apply(preprocess_full)
+    test_df['text_clean'] = test_df['text'].apply(preprocess_full)
+
+    # Gán biến cho các bước sau (Quan trọng)
+    X_train = train_df['text_clean']
+    y_train = train_df['label']
+    X_test = test_df['text_clean']
+    y_test = test_df['label']
+
+    print("✅ Đã xử lý xong! Bạn có thể chạy tiếp Bước 3.")
+else:
+    print("⚠️ Dừng chương trình do không tải được dữ liệu. Hãy kiểm tra lại đường dẫn BASE_DIR.")
