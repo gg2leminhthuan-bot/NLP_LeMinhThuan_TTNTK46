@@ -1,0 +1,55 @@
+# @title 6. Tổng hợp kết quả & Vẽ biểu đồ so sánh (ALL MODELS)
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+print(">>> BƯỚC 6: TỔNG HỢP VÀ TRỰC QUAN HÓA KẾT QUẢ")
+
+# 1. Kiểm tra dữ liệu
+if 'results_table' not in globals() or not results_table:
+    print("⚠️ CHƯA CÓ DỮ LIỆU! Bạn cần chạy ít nhất một mô hình (Bước 3, 4 hoặc 5) trước.")
+else:
+    # 2. Tạo DataFrame tổng hợp
+    df_res = pd.DataFrame(results_table).sort_values(by='Accuracy', ascending=False)
+
+    # Hiển thị bảng số liệu chi tiết ra màn hình
+    print("\n" + "="*60)
+    print("BẢNG XẾP HẠNG HIỆU NĂNG CÁC MÔ HÌNH")
+    print("="*60)
+    print(df_res[['Model', 'Accuracy', 'F1-Score', 'Precision', 'Recall']])
+    print("-" * 60)
+
+    # 3. Vẽ biểu đồ so sánh (Grouped Bar Chart)
+    plt.figure(figsize=(14, 7))
+    sns.set_style("whitegrid")
+
+    # Chuyển dữ liệu sang dạng 'long' để vẽ nhiều cột (Accuracy & F1)
+    df_melted = df_res.melt(id_vars="Model",
+                            value_vars=["Accuracy", "F1-Score"],
+                            var_name="Metric",
+                            value_name="Score")
+
+    # Vẽ biểu đồ
+    chart = sns.barplot(
+        x="Model",
+        y="Score",
+        hue="Metric",
+        data=df_melted,
+        palette="viridis" # Màu sắc hiện đại
+    )
+
+    # 4. Trang trí biểu đồ chuẩn báo cáo
+    plt.title("So sánh độ chính xác: Truyền thống vs FastText vs Transformer", fontsize=16, fontweight='bold')
+    plt.ylabel("Điểm số (0.0 - 1.0)", fontsize=12)
+    plt.xlabel("Mô hình", fontsize=12)
+    plt.ylim(0.6, 1.02) # Giới hạn trục Y để thấy rõ sự chênh lệch (vì các model đều > 60%)
+    plt.legend(title='Chỉ số đánh giá', loc='lower right')
+    plt.xticks(rotation=15) # Xoay tên mô hình nhẹ cho dễ đọc
+
+    # 5. Hiển thị con số chính xác trên đầu mỗi cột
+    for container in chart.containers:
+        chart.bar_label(container, fmt='%.3f', padding=3, fontsize=10, fontweight='bold')
+
+    plt.tight_layout()
+    plt.show()
+    print("\n✅ Biểu đồ đã bao gồm tất cả các mô hình có trong bảng kết quả.")
