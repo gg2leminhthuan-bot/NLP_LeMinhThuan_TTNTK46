@@ -1,0 +1,10 @@
+# @title 0. Cài đặt thư viện (BẮT BUỘC)
+# 1. Cài Numpy bản cũ để tránh lỗi FastText
+!pip install "numpy<2.0.0"
+
+# 2. Cài các thư viện cần thiết khác
+!pip install fasttext underthesea scikit-learn pandas matplotlib seaborn
+!pip install transformers datasets accelerate torch
+
+print("\n>>> ĐÃ CÀI ĐẶT XONG.")
+print("⚠️ QUAN TRỌNG: Hãy vào menu 'Runtime' -> 'Restart session' (hoặc Khởi động lại phiên) ngay bây giờ, sau đó mới chạy các ô code bên dưới!")
