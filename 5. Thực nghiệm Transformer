@@ -1,0 +1,83 @@
+# @title 5. Thực nghiệm Transformer (PhoBERT, viBERT, XLM-R...)
+import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
+from datasets import Dataset
+
+# Tắt WandB log
+os.environ["WANDB_DISABLED"] = "true"
+
+# Danh sách model cần chạy
+# Bạn có thể comment bớt dòng nếu muốn chạy nhanh hơn
+transformers_models = {
+    'PhoBERT': 'vinai/phobert-base',           # Tốt nhất cho tiếng Việt
+    'viBERT': 'FPTAI/vibert-base-cased',       # Nhẹ hơn PhoBERT
+    'mBERT': 'bert-base-multilingual-cased',   # Đa ngôn ngữ của Google
+    'XLM-R': 'xlm-roberta-base'                # Đa ngôn ngữ mạnh của Facebook
+}
+
+# Hàm chuyển đổi dữ liệu sang định dạng HuggingFace
+def convert_to_hg_dataset(X, y):
+    return Dataset.from_dict({"text": list(X), "label": list(y)})
+
+train_dataset = convert_to_hg_dataset(X_train, y_train)
+test_dataset = convert_to_hg_dataset(X_test, y_test)
+
+# Vòng lặp chạy từng model
+for model_alias, model_name in transformers_models.items():
+    print(f"\n>>> Đang xử lý: {model_alias} ({model_name}) ...")
+
+    try:
+        # 1. Load Tokenizer & Model
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=3)
+
+        # 2. Tokenize dữ liệu
+        def tokenize_function(examples):
+            return tokenizer(examples["text"], padding="max_length", truncation=True, max_length=128)
+
+        tokenized_train = train_dataset.map(tokenize_function, batched=True)
+        tokenized_test = test_dataset.map(tokenize_function, batched=True)
+
+        # 3. Cấu hình huấn luyện (Giảm batch size để tránh tràn RAM)
+        args = TrainingArguments(
+            output_dir=f"./results_{model_alias}",
+            num_train_epochs=3,              # Số vòng lặp
+            per_device_train_batch_size=16,  # Batch size nhỏ
+            per_device_eval_batch_size=16,
+            eval_strategy="epoch",
+            save_strategy="no",              # Không lưu checkpoint cho nhẹ ổ cứng
+            learning_rate=2e-5,
+            report_to="none"
+        )
+
+        # 4. Tạo Trainer
+        trainer = Trainer(
+            model=model,
+            args=args,
+            train_dataset=tokenized_train,
+            eval_dataset=tokenized_test,
+            compute_metrics=lambda p: {"accuracy": accuracy_score(p.label_ids, p.predictions.argmax(-1))}
+        )
+
+        # 5. Train & Evaluate
+        trainer.train()
+        eval_result = trainer.evaluate()
+
+        # 6. Lưu kết quả
+        # Lấy thêm các chỉ số Precision/Recall/F1 thủ công để chính xác
+        preds = trainer.predict(tokenized_test)
+        y_pred_trans = preds.predictions.argmax(-1)
+        p, r, f1, _ = precision_recall_fscore_support(y_test, y_pred_trans, average='weighted')
+
+        acc = eval_result['eval_accuracy']
+        print(f"✅ {model_alias}: Accuracy = {acc:.4f}")
+        results_table.append({'Model': model_alias, 'Accuracy': acc, 'Precision': p, 'Recall': r, 'F1-Score': f1})
+
+        # 7. DỌN DẸP BỘ NHỚ (CỰC KỲ QUAN TRỌNG)
+        del model, tokenizer, trainer
+        torch.cuda.empty_cache()
+        gc.collect()
+
+    except Exception as e:
+        print(f"⚠️ Lỗi khi chạy {model_alias}: {e}")
+        torch.cuda.empty_cache()
